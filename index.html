@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>TaskFlow 2.1</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#10B981">
+  <style>
+    body { -webkit-tap-highlight-color: transparent; }
+    .tab-active { border-bottom: 2px solid #10B981; color: #10B981; font-weight: 600; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen pb-24">
+
+  <!-- ヘッダー -->
+  <header class="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm">
+    <div class="flex items-center space-x-2">
+      <span class="text-xl">🐱</span>
+      <h1 class="text-lg font-bold text-slate-900 tracking-tight">利休タスク 2.1</h1>
+    </div>
+    <!-- 同期ステータスバッジ -->
+    <div id="syncBadge" class="flex items-center space-x-1.5 text-xs text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200">
+      <span id="syncDot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
+      <span id="syncText">同期済み</span>
+    </div>
+  </header>
+
+  <!-- 期間フィルター（Today, Tomorrow, This Week, This Month, All） -->
+  <nav class="bg-white border-b border-slate-200 px-4 overflow-x-auto">
+    <div class="flex space-x-6 min-w-max text-sm text-slate-500">
+      <button class="filter-date-btn py-3 tab-active" data-date="all">すべて</button>
+      <button class="filter-date-btn py-3" data-date="today">今日</button>
+      <button class="filter-date-btn py-3" data-date="tomorrow">明日</button>
+      <button class="filter-date-btn py-3" data-date="week">今週</button>
+      <button class="filter-date-btn py-3" data-date="month">今月</button>
+    </div>
+  </nav>
+
+  <!-- カテゴリフィルター -->
+  <div class="p-4 pb-2 overflow-x-auto">
+    <div class="flex space-x-2 min-w-max text-xs">
+      <button class="filter-cat-btn px-3 py-1.5 rounded-full bg-slate-900 text-white font-medium" data-cat="all">全カテゴリ</button>
+      <button class="filter-cat-btn px-3 py-1.5 rounded-full bg-white text-slate-700 border border-slate-200" data-cat="work_task">💼 仕事タスク</button>
+      <button class="filter-cat-btn px-3 py-1.5 rounded-full bg-white text-slate-700 border border-slate-200" data-cat="life_task">🏠 生活タスク</button>
+      <button class="filter-cat-btn px-3 py-1.5 rounded-full bg-white text-slate-700 border border-slate-200" data-cat="home_knowledge">📖 家庭ナレッジ</button>
+      <button class="filter-cat-btn px-3 py-1.5 rounded-full bg-white text-slate-700 border border-slate-200" data-cat="work_knowledge">💡 仕事ナレッジ</button>
+      <button class="filter-cat-btn px-3 py-1.5 rounded-full bg-white text-slate-700 border border-slate-200" data-cat="yomoyama">☕ よもやま</button>
+    </div>
+  </div>
+
+  <!-- タスクリスト一覧 -->
+  <main class="p-4 space-y-2.5" id="taskList">
+    <!-- JSでタスク要素を展開 -->
+  </main>
+
+  <!-- 下部固定バー（タスク追加入力 & LINE即時共有ボタン） -->
+  <footer class="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 p-3 shadow-lg">
+    <div class="max-w-2xl mx-auto space-y-2">
+      <form id="taskForm" class="flex items-center space-x-2">
+        <select id="taskCategory" class="text-xs bg-slate-100 border border-slate-300 rounded-lg px-2 py-2.5 focus:ring-2 focus:ring-emerald-500 outline-none">
+          <option value="work_task">仕事</option>
+          <option value="life_task">生活</option>
+          <option value="home_knowledge">家ナレッジ</option>
+          <option value="work_knowledge">仕ナレッジ</option>
+          <option value="yomoyama">よもやま</option>
+        </select>
+        <input type="text" id="taskTitle" placeholder="新しいタスクを入力..." required class="flex-1 text-sm bg-slate-100 border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+        <input type="date" id="taskDueDate" class="text-xs bg-slate-100 border border-slate-300 rounded-lg px-2 py-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+        <button type="submit" class="bg-emerald-500 text-white px-3.5 py-2 rounded-lg font-bold text-sm shadow hover:bg-emerald-600 active:scale-95 transition-all">追加</button>
+      </form>
+      <div class="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+        <span class="text-slate-400">毎朝LINEに自動配信中 🐾</span>
+        <button id="shareLineBtn" class="flex items-center space-x-1 bg-[#06C755] text-white px-3 py-1 rounded-md font-semibold hover:bg-[#05b34c] transition-colors">
+          <span>LINEですぐ共有</span>
+        </button>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // GASエンドポイント
+    const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycby3qmDEvkXcEFCTtmLjyWNVuO3j-BhD9DmIW2E680l4CZosTQMianATfxUI2A4ldQ0Xew/exec";
+
+    const CATEGORY_NAMES = {
+      work_task: "仕事タスク",
+      life_task: "生活タスク",
+      home_knowledge: "家庭ナレッジ",
+      work_knowledge: "仕事ナレッジ",
+      yomoyama: "よもやま"
+    };
+
+    let tasks = JSON.parse(localStorage.getItem('taskflow_tasks') || '[]');
+    let currentFilterDate = 'all';
+    let currentFilterCat = 'all';
+    let syncTimeout = null;
+
+    const taskListEl = document.getElementById('taskList');
+    const taskFormEl = document.getElementById('taskForm');
+    const syncDot = document.getElementById('syncDot');
+    const syncText = document.getElementById('syncText');
+
+    function saveLocal() {
+      localStorage.setItem('taskflow_tasks', JSON.stringify(tasks));
+      renderTasks();
+      triggerSpreadsheetSync();
+    }
+
+    // Googleスプレッドシートへの非同期反映
+    function triggerSpreadsheetSync() {
+      if (syncTimeout) clearTimeout(syncTimeout);
+      setSyncStatus('syncing');
+
+      syncTimeout = setTimeout(() => {
+        fetch(GAS_WEBAPP_URL, {
+          method: 'POST',
+          mode: 'no-cors', // CORS制約を回避
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'syncAll',
+            tasks: tasks
+          })
+        }).then(() => {
+          setSyncStatus('synced');
+        }).catch(err => {
+          console.error(err);
+          setSyncStatus('error');
+        });
+      }, 700); // 連続入力時の負荷を抑えるデバウンス
+    }
+
+    function setSyncStatus(state) {
+      if (state === 'syncing') {
+        syncDot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
+        syncText.textContent = '同期中...';
+      } else if (state === 'synced') {
+        syncDot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+        syncText.textContent = '同期済み';
+      } else {
+        syncDot.className = 'w-2 h-2 rounded-full bg-rose-500';
+        syncText.textContent = '同期失敗';
+      }
+    }
+
+    function getTodayString() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    function getTomorrowString() {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    function renderTasks() {
+      const todayStr = getTodayString();
+      const tomorrowStr = getTomorrowString();
+
+      const filtered = tasks.filter(task => {
+        if (currentFilterCat !== 'all' && task.category !== currentFilterCat) return false;
+        if (currentFilterDate === 'today') return task.dueDate === todayStr;
+        if (currentFilterDate === 'tomorrow') return task.dueDate === tomorrowStr;
+        if (currentFilterDate === 'week') {
+          if (!task.dueDate) return false;
+          const target = new Date(task.dueDate);
+          const now = new Date();
+          const nextWeek = new Date();
+          nextWeek.setDate(now.getDate() + 7);
+          return target >= now && target <= nextWeek;
+        }
+        if (currentFilterDate === 'month') {
+          if (!task.dueDate) return false;
+          return task.dueDate.slice(0, 7) === todayStr.slice(0, 7);
+        }
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        taskListEl.innerHTML = `
+          <div class="text-center py-16 text-slate-400 text-sm">
+            タスクはありません 🐾
+          </div>`;
+        return;
+      }
+
+      taskListEl.innerHTML = filtered.map(task => `
+        <div class="flex items-center justify-between p-3.5 bg-white rounded-xl border border-slate-200 shadow-sm transition-all ${task.completed ? 'opacity-50 bg-slate-50' : ''}">
+          <div class="flex items-center space-x-3 flex-1 min-w-0 pr-2">
+            <input type="checkbox" ${task.completed ? 'checked' : ''} onchange="toggleComplete('${task.id}')" class="w-5 h-5 rounded text-emerald-500 focus:ring-emerald-400 cursor-pointer">
+            <div class="min-w-0 flex-1">
+              <div class="text-sm font-medium ${task.completed ? 'line-through text-slate-400' : 'text-slate-800'} truncate">
+                ${escapeHtml(task.title)}
+              </div>
+              <div class="flex items-center space-x-2 text-[11px] text-slate-400 mt-0.5">
+                <span class="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">${CATEGORY_NAMES[task.category] || task.category}</span>
+                ${task.dueDate ? `<span>📅 ${task.dueDate}</span>` : ''}
+              </div>
+            </div>
+          </div>
+          <button onclick="deleteTask('${task.id}')" class="text-slate-300 hover:text-rose-500 p-1 text-sm transition-colors">✕</button>
+        </div>
+      `).join('');
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#39;',
+        '"': '&quot;'
+      }[tag] || tag));
+    }
+
+    window.toggleComplete = function(id) {
+      const target = tasks.find(t => t.id === id);
+      if (target) {
+        target.completed = !target.completed;
+        saveLocal();
+      }
+    };
+
+    window.deleteTask = function(id) {
+      tasks = tasks.filter(t => t.id !== id);
+      saveLocal();
+    };
+
+    taskFormEl.addEventListener('submit', e => {
+      e.preventDefault();
+      const titleInput = document.getElementById('taskTitle');
+      const catInput = document.getElementById('taskCategory');
+      const dueInput = document.getElementById('taskDueDate');
+
+      const newTask = {
+        id: 'task_' + Date.now(),
+        title: titleInput.value.trim(),
+        category: catInput.value,
+        dueDate: dueInput.value || '',
+        completed: false,
+        createdAt: getTodayString()
+      };
+
+      tasks.unshift(newTask);
+      saveLocal();
+      titleInput.value = '';
+      dueInput.value = '';
+    });
+
+    // フィルターイベントハンドラ
+    document.querySelectorAll('.filter-date-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-date-btn').forEach(b => b.classList.remove('tab-active'));
+        btn.classList.add('tab-active');
+        currentFilterDate = btn.dataset.date;
+        renderTasks();
+      });
+    });
+
+    document.querySelectorAll('.filter-cat-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-cat-btn').forEach(b => {
+          b.className = 'filter-cat-btn px-3 py-1.5 rounded-full bg-white text-slate-700 border border-slate-200';
+        });
+        btn.className = 'filter-cat-btn px-3 py-1.5 rounded-full bg-slate-900 text-white font-medium';
+        currentFilterCat = btn.dataset.cat;
+        renderTasks();
+      });
+    });
+
+    // LINE即時共有ボタン
+    document.getElementById('shareLineBtn').addEventListener('click', () => {
+      const activeTasks = tasks.filter(t => !t.completed);
+      if (activeTasks.length === 0) {
+        alert('現在未完了のタスクはありません');
+        return;
+      }
+      let text = '📋 【利休タスク一覧】\n';
+      activeTasks.forEach(t => {
+        const cat = CATEGORY_NAMES[t.category] || t.category;
+        const due = t.dueDate ? ` (期日: ${t.dueDate})` : '';
+        text += `・[${cat}] ${t.title}${due}\n`;
+      });
+      const url = `https://line.me/R/msg/text/?${encodeURIComponent(text.trim())}`;
+      window.open(url, '_blank');
+    });
+
+    // 初期描画
+    renderTasks();
+  </script>
+</body>
+</html>
